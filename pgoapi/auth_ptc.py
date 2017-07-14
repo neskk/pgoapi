@@ -109,7 +109,7 @@ class AuthPtc(Auth):
             raise AuthException('Auth POST Proxy/SSL/Connection error: {}'.format(e))
 
         try:
-            self._access_token = r.cookies['CASTGC'].value
+            self._access_token = self._session.cookies['CASTGC']
         except (AttributeError, KeyError, TypeError):
             try:
                 j = r.json(encoding='utf-8')
