@@ -74,53 +74,64 @@ class AuthPtc(Auth):
 
         self.log.info('PTC User Login for: {}'.format(self._username))
         self._session.cookies.clear()
-        now = get_time()
 
         try:
+            now = get_time()
+
             r = self._session.get('https://sso.pokemon.com/sso/oauth2.0/authorize', params={'client_id': 'mobile-app_pokemon-go', 'redirect_uri': 'https://www.nianticlabs.com/pokemongo/error', 'locale': self.locale}, timeout=self.timeout)
-        except Timeout:
-            raise AuthTimeoutException('Auth GET timed out.')
-        except RequestException as e:
-            raise AuthException('Caught RequestException: {}'.format(e))
-        except (ProxyError, SSLError, ConnectionError) as e:
-            raise AuthException('Auth GET Proxy/SSL/Connection error: {}'.format(e))
 
-
-        try:
             data = r.json(encoding='utf-8')
+
             assert 'lt' in data
             data.update({
                 '_eventId': 'submit',
                 'username': self._username,
-                'password': self._password,
-                'locale': self.locale
+                'password': self._password
             })
-        except (AssertionError, ValueError, AttributeError) as e:
-            self.log.error('PTC User Login Error - invalid initial JSON response: {}'.format(e))
-            raise AuthException('Invalid initial JSON response: {}'.format(e))
 
-        try:
+            self._session.get('https://sso.pokemon.com/sso/logout', params={'service': 'https%3A%2F%2Fsso.pokemon.com%2Fsso%2Foauth2.0%2FcallbackAuthorize'}, timeout=self.timeout, allow_redirects=False)
+            self._session.get('https://sso.pokemon.com/sso/login', params={'service': 'https%3A%2F%2Fsso.pokemon.com%2Fsso%2Foauth2.0%2FcallbackAuthorize', 'locale': self.locale}, timeout=self.timeout)
+
             r = self._session.post('https://sso.pokemon.com/sso/login', params={'service': 'http://sso.pokemon.com/sso/oauth2.0/callbackAuthorize'}, headers={'Content-Type': 'application/x-www-form-urlencoded'}, data=data, timeout=self.timeout, allow_redirects=False)
-        except Timeout:
-            raise AuthTimeoutException('Auth POST timed out.')
+
+            try:
+                self._access_token = self._session.cookies['CASTGC']
+            except (AttributeError, KeyError, TypeError):
+                try:
+                    j = r.json(encoding='utf-8')
+                except ValueError as e:
+                    raise AuthException('Unable to decode second response: {}'.format(e))
+                try:
+                    if j.get('error_code') == 'users.login.activation_required':
+                        raise AuthException('Account email not verified.')
+                    raise AuthException(j['errors'][0])
+                except (AttributeError, IndexError, KeyError, TypeError) as e:
+                    raise AuthException('Unable to login or get error information: {}'.format(e))
+
+            token_data = {
+                'client_id': 'mobile-app_pokemon-go',
+                'redirect_uri': 'https://www.nianticlabs.com/pokemongo/error',
+                'client_secret': 'w8ScCUXJQc6kXKw8FiOhd8Fixzht18Dq3PEVkUCP5ZPxtgyWsbTvWHFLm2wNY0JR',
+                'grant_type': 'refresh_token',
+                'code': r.headers['Location'].split("ticket=")[1]
+            }
+            self._session.post('https://sso.pokemon.com/sso/oauth2.0/accessToken', headers={'Content-Type': 'application/x-www-form-urlencoded'}, data=token_data, timeout=self.timeout)
+
+            profile_data = {
+                'access_token': self._access_token,
+                'client_id': 'mobile-app_pokemon-go',
+                'locale': self.locale
+            }
+            self._session.post('https://sso.pokemon.com/sso/oauth2.0/profile', headers={'Content-Type': 'application/x-www-form-urlencoded'}, data=profile_data, timeout=self.timeout)
+
+        except (ProxyError, SSLError, ConnectionError) as e:
+            raise AuthException('Proxy connection error during user_login: {}'.format(e))
+        except TimeoutError as e:
+            raise AuthTimeoutException('user_login timeout')
         except RequestException as e:
             raise AuthException('Caught RequestException: {}'.format(e))
-        except (ProxyError, SSLError, ConnectionError) as e:
-            raise AuthException('Auth POST Proxy/SSL/Connection error: {}'.format(e))
-
-        try:
-            self._access_token = self._session.cookies['CASTGC']
-        except (AttributeError, KeyError, TypeError):
-            try:
-                j = r.json(encoding='utf-8')
-            except ValueError as e:
-                raise AuthException('Unable to decode second response: {}'.format(e))
-            try:
-                if j.get('error_code') == 'users.login.activation_required':
-                    raise AuthException('Account email not verified.')
-                raise AuthException(j['errors'][0])
-            except (AttributeError, IndexError, KeyError, TypeError) as e:
-                raise AuthException('Unable to login or get error information: {}'.format(e))
+        except (AssertionError, TypeError, ValueError) as e:
+            raise AuthException('Invalid initial JSON response.')
 
         if self._access_token:
             self._login = True
