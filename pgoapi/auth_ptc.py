@@ -122,4 +122,5 @@ class AuthPtc(Auth):
 
         self._access_token = None
         self._login = False
-        return self.user_login(retry=False)
+        self.user_login()
+        return self._access_token
