@@ -64,15 +64,17 @@ class Auth:
         return self._access_token
 
     def has_ticket(self):
-        return self._ticket_expire and self._ticket_start and self._ticket_end
+        return (self._ticket_expire and self._ticket_start and self._ticket_end)
 
     def set_ticket(self, params):
         self._ticket_expire, self._ticket_start, self._ticket_end = params
 
     def is_new_ticket(self, new_ticket_time_ms):
-        return not self._ticket_expire or new_ticket_time_ms > self._ticket_expire
+        return (not self._ticket_expire or new_ticket_time_ms > self._ticket_expire)
 
     def check_ticket(self):
+        if not self.has_ticket():
+            return False
         now_ms = get_time(ms = True)
         if now_ms < (self._ticket_expire - 10000):
             h, m, s = get_format_time_diff(now_ms, self._ticket_expire, True)
@@ -84,7 +86,9 @@ class Auth:
         return False
 
     def get_ticket(self):
-        return (self._ticket_expire, self._ticket_start, self._ticket_end)
+        if self.check_ticket():
+            return (self._ticket_expire, self._ticket_start, self._ticket_end)
+        return False
 
     def user_login(self, username, password):
         raise NotImplementedError()
