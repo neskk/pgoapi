@@ -36,7 +36,7 @@ from pgoapi.auth import Auth
 from pgoapi.utilities import get_time
 from pgoapi.exceptions import AuthException, AuthTimeoutException, InvalidCredentialsException
 
-from requests.exceptions import RequestException, Timeout
+from requests.exceptions import RequestException, Timeout, ProxyError, SSLError, ConnectionError
 
 class AuthPtc(Auth):
 
@@ -82,6 +82,9 @@ class AuthPtc(Auth):
             raise AuthTimeoutException('Auth GET timed out.')
         except RequestException as e:
             raise AuthException('Caught RequestException: {}'.format(e))
+        except (ProxyError, SSLError, ConnectionError) as e:
+            raise AuthException('Auth GET Proxy/SSL/Connection error: {}'.format(e))
+
 
         try:
             data = r.json(encoding='utf-8')
@@ -102,8 +105,22 @@ class AuthPtc(Auth):
             raise AuthTimeoutException('Auth POST timed out.')
         except RequestException as e:
             raise AuthException('Caught RequestException: {}'.format(e))
+        except (ProxyError, SSLError, ConnectionError) as e:
+            raise AuthException('Auth POST Proxy/SSL/Connection error: {}'.format(e))
 
-        self._access_token = self._session.cookies.get('CASTGC')
+        try:
+            self._access_token = r.cookies['CASTGC'].value
+        except (AttributeError, KeyError, TypeError):
+            try:
+                j = r.json(encoding='utf-8')
+            except ValueError as e:
+                raise AuthException('Unable to decode second response: {}'.format(e))
+            try:
+                if j.get('error_code') == 'users.login.activation_required':
+                    raise AuthException('Account email not verified.')
+                raise AuthException(j['errors'][0])
+            except (AttributeError, IndexError, KeyError, TypeError) as e:
+                raise AuthException('Unable to login or get error information: {}'.format(e))
 
         if self._access_token:
             self._login = True
