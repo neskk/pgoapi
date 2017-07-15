@@ -126,7 +126,7 @@ class AuthPtc(Auth):
 
         except (ProxyError, SSLError, ConnectionError) as e:
             raise AuthException('Proxy connection error during user_login: {}'.format(e))
-        except TimeoutError as e:
+        except Timeout as e:
             raise AuthTimeoutException('user_login timeout')
         except RequestException as e:
             raise AuthException('Caught RequestException: {}'.format(e))
