@@ -78,7 +78,13 @@ class AuthPtc(Auth):
         try:
             now = get_time()
 
-            r = self._session.get('https://sso.pokemon.com/sso/oauth2.0/authorize', params={'client_id': 'mobile-app_pokemon-go', 'redirect_uri': 'https://www.nianticlabs.com/pokemongo/error', 'locale': self.locale}, timeout=self.timeout)
+            authorize_params = {
+                'client_id': 'mobile-app_pokemon-go',
+                'redirect_uri': 'https://www.nianticlabs.com/pokemongo/error',
+                'locale': self.locale
+            }
+
+            r = self._session.get('https://sso.pokemon.com/sso/oauth2.0/authorize', params=authorize_params, timeout=self.timeout)
 
             data = r.json(encoding='utf-8')
 
@@ -89,10 +95,24 @@ class AuthPtc(Auth):
                 'password': self._password
             })
 
-            self._session.get('https://sso.pokemon.com/sso/logout', params={'service': 'https%3A%2F%2Fsso.pokemon.com%2Fsso%2Foauth2.0%2FcallbackAuthorize'}, timeout=self.timeout, allow_redirects=False)
-            self._session.get('https://sso.pokemon.com/sso/login', params={'service': 'https%3A%2F%2Fsso.pokemon.com%2Fsso%2Foauth2.0%2FcallbackAuthorize', 'locale': self.locale}, timeout=self.timeout)
+            logout_params = {
+                'service': 'https%3A%2F%2Fsso.pokemon.com%2Fsso%2Foauth2.0%2FcallbackAuthorize'
+            }
+            self._session.get('https://sso.pokemon.com/sso/logout', params=logout_params, timeout=self.timeout, allow_redirects=False)
 
-            r = self._session.post('https://sso.pokemon.com/sso/login', params={'service': 'http://sso.pokemon.com/sso/oauth2.0/callbackAuthorize'}, headers={'Content-Type': 'application/x-www-form-urlencoded'}, data=data, timeout=self.timeout, allow_redirects=False)
+            login_params_get = {
+                'service': 'https%3A%2F%2Fsso.pokemon.com%2Fsso%2Foauth2.0%2FcallbackAuthorize',
+                'locale': self.locale
+            }
+            self._session.get('https://sso.pokemon.com/sso/login', params=login_params_get, timeout=self.timeout)
+
+            login_params_post = {
+                'service': 'http://sso.pokemon.com/sso/oauth2.0/callbackAuthorize'
+            }
+            login_headers_post = {
+                'Content-Type': 'application/x-www-form-urlencoded'
+            }
+            r = self._session.post('https://sso.pokemon.com/sso/login', params=login_params_post, headers=login_headers_post, data=data, timeout=self.timeout, allow_redirects=False)
 
             try:
                 self._access_token = self._session.cookies['CASTGC']
@@ -115,14 +135,20 @@ class AuthPtc(Auth):
                 'grant_type': 'refresh_token',
                 'code': r.headers['Location'].split("ticket=")[1]
             }
-            self._session.post('https://sso.pokemon.com/sso/oauth2.0/accessToken', headers={'Content-Type': 'application/x-www-form-urlencoded'}, data=token_data, timeout=self.timeout)
+            token_headers = {
+                'Content-Type': 'application/x-www-form-urlencoded'
+            }
+            self._session.post('https://sso.pokemon.com/sso/oauth2.0/accessToken', headers=token_headers, data=token_data, timeout=self.timeout)
 
             profile_data = {
                 'access_token': self._access_token,
                 'client_id': 'mobile-app_pokemon-go',
                 'locale': self.locale
             }
-            self._session.post('https://sso.pokemon.com/sso/oauth2.0/profile', headers={'Content-Type': 'application/x-www-form-urlencoded'}, data=profile_data, timeout=self.timeout)
+            profile_headers = {
+                'Content-Type': 'application/x-www-form-urlencoded'
+            }
+            self._session.post('https://sso.pokemon.com/sso/oauth2.0/profile', headers=profile_headers, data=profile_data, timeout=self.timeout)
 
         except (ProxyError, SSLError, ConnectionError) as e:
             raise AuthException('Proxy connection error during user_login: {}'.format(e))
