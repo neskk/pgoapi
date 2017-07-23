@@ -108,8 +108,16 @@ class AuthPtc(Auth):
                 'password': self._password
             })
 
-            self._session.get('https://sso.pokemon.com/sso/logout', params={'service': 'https%3A%2F%2Fsso.pokemon.com%2Fsso%2Foauth2.0%2FcallbackAuthorize'}, timeout=self.timeout, allow_redirects=False)
-            self._session.get('https://sso.pokemon.com/sso/login', params={'service': 'https%3A%2F%2Fsso.pokemon.com%2Fsso%2Foauth2.0%2FcallbackAuthorize', 'locale': self.locale}, timeout=self.timeout)
+            logout_params = {
+                'service': 'https%3A%2F%2Fsso.pokemon.com%2Fsso%2Foauth2.0%2FcallbackAuthorize'
+            }
+            self._session.get('https://sso.pokemon.com/sso/logout', params=logout_params, timeout=self.timeout, allow_redirects=False)
+
+            login_params = {
+                'service': 'https%3A%2F%2Fsso.pokemon.com%2Fsso%2Foauth2.0%2FcallbackAuthorize',
+                'locale': self.locale
+            }
+            self._session.get(self.PTC_LOGIN_URL2, params=login_params, timeout=self.timeout)
 
             r = self._session.post(self.PTC_LOGIN_URL2, params=post_params, headers=post_headers, data=data, timeout=self.timeout, allow_redirects=False)
 
